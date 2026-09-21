@@ -104,6 +104,7 @@ All invoice routes require an administrator bearer token.
 | `GET` | `/api/invoices` | List saved invoices |
 | `GET` | `/api/invoices/{id}` | Get one invoice |
 | `POST` | `/api/invoices` | Create an invoice from product IDs and quantities |
+| `PUT` | `/api/invoices/{id}` | Update an invoice and its status |
 | `DELETE` | `/api/invoices/{id}` | Delete an invoice |
 
 The backend snapshots product names and prices when an invoice is created. The admin interface provides a live A4 preview and generates downloadable PDFs in the browser.
@@ -137,3 +138,35 @@ Example request body:
 ```
 
 Run checks with `pnpm build` and, from `backend/`, `./mvnw test`.
+
+## Git workflow
+
+Create the first commit, connect the repository to GitHub, and push the `main` branch:
+
+```bash
+git add -A
+git commit -m "chore: initialize project"
+git remote add origin https://github.com/TonyRoyze/octo-garbanzo.git
+git branch -M main
+git push -u origin main
+```
+
+For later changes, commit each piece separately. Use `y` to stage a change, `n` to skip it,
+and `s` to split a larger change:
+
+```bash
+git add -p
+git commit -m "fix: improve product picker layout"
+
+git add -p
+git commit -m "feat: add product editing"
+
+git add -p
+git commit -m "feat: add invoice editing and status updates"
+```
+
+If `origin` already exists, update it instead:
+
+```bash
+git remote set-url origin https://github.com/TonyRoyze/octo-garbanzo.git
+```
