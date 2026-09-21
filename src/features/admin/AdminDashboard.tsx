@@ -1,27 +1,38 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   // BarChart3,
   Bell,
   Boxes,
+  Building2,
   FileText,
   LogOut,
   // Settings,
+  Menu,
   Store,
+  Users,
+  Warehouse,
+  X,
   // Tag,
 } from "lucide-react";
 import type { CreateProductInput, Product } from "../../api";
 import type { AuthSession } from "../../auth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+
 import { AddProductDialog } from "./AddProductDialog";
 import { InvoicesPage } from "./pages/InvoicesPage";
 // import { OverviewPage } from "./pages/OverviewPage";
 import { ProductsPage } from "./pages/ProductsPage";
+import { ContactsPage } from "./pages/ContactsPage";
+import { InventoryPage } from "./pages/InventoryPage";
 
 const navigation = [
   // { label: "Overview", icon: LayoutDashboard },
   { label: "Products", icon: Boxes },
   { label: "Invoices", icon: FileText },
+  { label: "Customers", icon: Users },
+  { label: "Suppliers", icon: Building2 },
+  { label: "Inventory", icon: Warehouse },
 ];
 
 type AdminDashboardProps = {
@@ -31,6 +42,7 @@ type AdminDashboardProps = {
   onCreateProduct: (product: CreateProductInput) => Promise<void>;
   onUpdateProduct: (id: string, product: CreateProductInput) => Promise<void>;
   onDeleteProduct: (id: string) => Promise<void>;
+  onProductsChanged: () => Promise<void>;
   onLogout: () => void;
   onViewStore: () => void;
   onNotify: (message: string) => void;
@@ -43,21 +55,15 @@ export function AdminDashboard({
   onCreateProduct,
   onUpdateProduct,
   onDeleteProduct,
+  onProductsChanged,
   onLogout,
   onViewStore,
   onNotify,
 }: AdminDashboardProps) {
   const [page, setPage] = useState("Invoices");
-  const [query, setQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const filteredProducts = useMemo(
-    () =>
-      products.filter((product) =>
-        product.name.toLowerCase().includes(query.toLowerCase()),
-      ),
-    [products, query],
-  );
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   async function createProduct(product: CreateProductInput) {
     if (editingProduct) {
@@ -162,6 +168,16 @@ export function AdminDashboard({
       <main className="min-w-0">
         <header className="flex h-16 items-center justify-between border-b px-4 sm:px-8">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Button
+              className="md:hidden"
+              variant="ghost"
+              size="icon"
+              aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+              aria-expanded={mobileMenuOpen}
+              onClick={() => setMobileMenuOpen((open) => !open)}
+            >
+              {mobileMenuOpen ? <X data-icon="inline-start" /> : <Menu data-icon="inline-start" />}
+            </Button>
             <strong className="text-foreground md:hidden">Morrow</strong>
             <span className="hidden md:inline">Workspace</span>
             <span className="hidden md:inline">/</span>
@@ -181,12 +197,19 @@ export function AdminDashboard({
             </Button>
           </div>
         </header>
-        <nav className="admin-mobile-nav" aria-label="Admin pages">
+        <nav
+          className={`absolute inset-x-0 top-16 z-10 grid-cols-1 gap-1 border-b bg-white/98 p-2 shadow-[0_0.75rem_1.5rem_rgb(24_53_43/12%)] backdrop-blur-[14px] md:hidden ${mobileMenuOpen ? "grid" : "hidden"}`}
+          aria-label="Admin pages"
+        >
           {navigation.map(({ label, icon: Icon }) => (
             <button
               type="button"
               data-active={page === label}
-              onClick={() => setPage(label)}
+              className="flex min-w-0 items-center justify-start gap-[0.4rem] rounded-[0.55rem] border-0 bg-transparent px-[0.8rem] py-[0.7rem] text-xs text-muted-foreground data-[active=true]:bg-[#eaf0e7] data-[active=true]:font-bold data-[active=true]:text-[#18352b] [&_svg]:size-4"
+              onClick={() => {
+                setPage(label);
+                setMobileMenuOpen(false);
+              }}
               key={label}
             >
               <Icon />
@@ -210,10 +233,8 @@ export function AdminDashboard({
         )}*/}
         {page === "Products" && (
           <ProductsPage
-            products={filteredProducts}
+            products={products}
             loading={loading}
-            query={query}
-            onQuery={setQuery}
             onAdd={() => {
               setEditingProduct(null);
               setDialogOpen(true);
@@ -223,11 +244,16 @@ export function AdminDashboard({
               setDialogOpen(true);
             }}
             onDelete={onDeleteProduct}
+            onProductsChanged={onProductsChanged}
+            onNotify={onNotify}
           />
         )}
         {page === "Invoices" && (
-          <InvoicesPage products={products} onNotify={onNotify} />
+          <InvoicesPage products={products} onProductsChanged={onProductsChanged} onNotify={onNotify} />
         )}
+        {page === "Customers" && <ContactsPage kind="customers" onNotify={onNotify} />}
+        {page === "Suppliers" && <ContactsPage kind="suppliers" onNotify={onNotify} />}
+        {page === "Inventory" && <InventoryPage products={products} onChanged={onProductsChanged} onNotify={onNotify} />}
       </main>
       <AddProductDialog
         key={dialogOpen ? editingProduct?.id ?? "new-product" : "closed"}

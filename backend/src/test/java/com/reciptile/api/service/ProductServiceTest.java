@@ -11,6 +11,7 @@ import com.reciptile.api.product.Product;
 import com.reciptile.api.product.ProductRequest;
 import com.reciptile.api.product.ProductStatus;
 import com.reciptile.api.repository.ProductRepository;
+import com.reciptile.api.repository.StockMovementRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -22,6 +23,8 @@ class ProductServiceTest {
 
     @Mock
     private ProductRepository repository;
+    @Mock
+    private StockMovementRepository movements;
 
     @InjectMocks
     private ProductService service;
@@ -29,7 +32,7 @@ class ProductServiceTest {
     @Test
     void createsDraftProductWhenStatusIsMissing() {
         ProductRequest request = new ProductRequest(
-                "  Linen notebook  ", "  Handmade paper  ", new BigDecimal("12.50"), null, null);
+                "  Linen notebook  ", "  Handmade paper  ", new BigDecimal("12.50"), null, 24, null, null, null);
         when(repository.save(org.mockito.ArgumentMatchers.any(Product.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -38,6 +41,7 @@ class ProductServiceTest {
         assertThat(created.getName()).isEqualTo("Linen notebook");
         assertThat(created.getDescription()).isEqualTo("Handmade paper");
         assertThat(created.getStatus()).isEqualTo(ProductStatus.DRAFT);
+        assertThat(created.getQuantity()).isEqualTo(24);
     }
 
     @Test

@@ -78,6 +78,7 @@ For a separately hosted frontend, also set `CORS_ALLOWED_ORIGINS=https://shop.ex
 | `DELETE` | `/api/products/{id}` | Delete a product |
 
 Product reads are public. Creating, updating, and deleting products require an admin bearer token.
+Products include a non-negative stock quantity that can be maintained from the admin catalog.
 The admin product form accepts up to four optional JPEG, PNG, WebP, or AVIF images of up to 5 MB
 each. The first image is the main storefront image, and the other three appear in the product gallery.
 Spring Boot authenticates the admin and prepares each UploadThing upload; the browser then sends the
@@ -86,6 +87,10 @@ files directly to UploadThing and saves the returned file keys and URLs with the
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `POST` | `/api/uploads/product-images/prepare` | Prepare an admin-only UploadThing image upload |
+
+Invoices can combine catalog products with custom service lines. Product prices are resolved from the
+catalog by Spring Boot; service lines store their own service name, rate, and quantity. Both line types
+appear in the live preview and downloaded PDF.
 
 ## Authentication API
 

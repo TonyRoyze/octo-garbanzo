@@ -25,10 +25,31 @@ function store(session: AuthSession) {
   return session;
 }
 
+function tokenIsExpired(token: string) {
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return true;
+    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+    const bytes = Uint8Array.from(atob(padded), (character) =>
+      character.charCodeAt(0),
+    );
+    const claims = JSON.parse(new TextDecoder().decode(bytes)) as {
+      exp?: number;
+    };
+    return typeof claims.exp !== "number" || claims.exp * 1000 <= Date.now();
+  } catch {
+    return true;
+  }
+}
+
 export function currentSession(): AuthSession | null {
   const token = sessionStorage.getItem(TOKEN_KEY);
   const user = sessionStorage.getItem(USER_KEY);
-  if (!token || !user) return null;
+  if (!token || !user || tokenIsExpired(token)) {
+    signOut();
+    return null;
+  }
   try {
     return { token, user: JSON.parse(user) as AuthUser };
   } catch {

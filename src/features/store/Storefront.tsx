@@ -15,7 +15,6 @@ export function Storefront({
   onView,
   onAdd,
   onRemove,
-  // onAdmin,
   onCheckout,
   onLogout,
   onNotify,
@@ -31,7 +30,7 @@ export function Storefront({
   }
 
   return (
-    <div className="store-shell">
+    <div className="min-h-screen bg-[#f4f6f1] text-[#202622]">
       <StoreHeader
         itemCount={cart.length}
         userName={userName}
@@ -60,15 +59,12 @@ export function Storefront({
         />
       )}
 
-      <footer className="store-footer">
-        <div>
-          <strong>Morrow</strong>
+      <footer className="grid grid-cols-[1fr_auto_1fr] items-end gap-8 border-t border-[#18352b24] px-[4vw] py-12 text-[0.78rem] text-[#657169] max-[560px]:grid-cols-[1fr_auto]">
+        <div className="flex flex-col gap-[0.35rem]">
+          <strong className="font-heading text-xl text-[#18352b]">Morrow</strong>
           <span>Objects for a considered everyday.</span>
         </div>
-        <span>© 2026 Morrow goods</span>
-        {/*<button type="button" onClick={onAdmin}>
-          Admin
-        </button>*/}
+        <span className="max-[560px]:hidden">© 2026 Morrow goods</span>
       </footer>
 
       {cookieNoticeOpen && (

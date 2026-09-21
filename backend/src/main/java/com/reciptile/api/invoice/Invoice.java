@@ -14,6 +14,7 @@ public class Invoice {
     @Id
     private String id;
     private String invoiceNumber;
+    private String customerId;
     private String customerName;
     private String customerEmail;
     private List<InvoiceItem> items = List.of();
@@ -52,6 +53,7 @@ public class Invoice {
 
     public String getId() { return id; }
     public String getInvoiceNumber() { return invoiceNumber; }
+    public String getCustomerId() { return customerId; }
     public String getCustomerName() { return customerName; }
     public String getCustomerEmail() { return customerEmail; }
     public List<InvoiceItem> getItems() { return items; }
@@ -64,6 +66,7 @@ public class Invoice {
     public Instant getCreatedAt() { return createdAt; }
 
     public void setCustomerName(String customerName) { this.customerName = customerName; }
+    public void setCustomerId(String customerId) { this.customerId = customerId; }
     public void setCustomerEmail(String customerEmail) { this.customerEmail = customerEmail; }
     public void setItems(List<InvoiceItem> items) { this.items = items; }
     public void setAmount(BigDecimal amount) { this.amount = amount; }

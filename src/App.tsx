@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
+import { toast, Toaster } from "@/components/ui/toast";
 import type { CreateProductInput, Product } from "./api";
-import { productsApi } from "./api";
+import { AUTH_EXPIRED_EVENT, productsApi } from "./api";
 import { AuthForm } from "./AuthForm";
 import { authApi, currentSession, signOut, type AuthSession } from "./auth";
-import { Notice } from "./components/Notice";
 import {
   Dialog,
   DialogContent,
@@ -15,7 +15,6 @@ import { AdminDashboard } from "./features/admin/AdminDashboard";
 import { AdminLogin } from "./features/admin/AdminLogin";
 import { Storefront } from "./features/store/Storefront";
 import type { StoreView } from "./features/store/types";
-import "./App.css";
 
 function App() {
   const [storefront, setStorefront] = useState(false);
@@ -26,12 +25,14 @@ function App() {
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<Product[]>([]);
   const [customerLoginOpen, setCustomerLoginOpen] = useState(false);
-  const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(true);
 
   const notify = useCallback((message: string) => {
-    setNotice(message);
-    window.setTimeout(() => setNotice(""), 2400);
+    toast.add({
+      title: "Morrow",
+      description: message,
+      type: "info",
+    });
   }, []);
 
   useEffect(() => {
@@ -41,6 +42,18 @@ function App() {
       .catch((error: Error) => notify(error.message))
       .finally(() => setLoading(false));
   }, [notify]);
+
+  useEffect(() => {
+    const handleExpiredSession = () => setSession(null);
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleExpiredSession);
+    return () =>
+      window.removeEventListener(AUTH_EXPIRED_EVENT, handleExpiredSession);
+  }, []);
+
+  const reloadProducts = useCallback(async () => {
+    const next = await productsApi.list();
+    setProducts(next);
+  }, []);
 
   function openStore(view: StoreView = "shop") {
     setStorefront(true);
@@ -165,7 +178,7 @@ function App() {
             <AuthForm onSuccess={finishCustomerLogin} />
           </DialogContent>
         </Dialog>
-        {notice && <Notice message={notice} />}
+        <Toaster />
       </>
     );
   }
@@ -188,11 +201,12 @@ function App() {
         onCreateProduct={createProduct}
         onUpdateProduct={updateProduct}
         onDeleteProduct={deleteProduct}
+        onProductsChanged={reloadProducts}
         onLogout={logout}
         onViewStore={() => openStore("shop")}
         onNotify={notify}
       />
-      {notice && <Notice message={notice} />}
+      <Toaster />
     </>
   );
 }

@@ -12,6 +12,9 @@ export type Product = {
   description: string;
   price: number;
   status: ProductStatus;
+  quantity: number;
+  supplierId?: string | null;
+  lowStockThreshold?: number;
   images?: ProductImage[];
   /** Legacy field retained while existing MongoDB products are migrated. */
   image?: ProductImage | null;
@@ -30,9 +33,11 @@ export function getProductImages(product: Product): ProductImage[] {
 }
 
 export type InvoiceStatus = "DRAFT" | "SENT" | "PAID" | "OVERDUE";
+export type InvoiceLineType = "PRODUCT" | "SERVICE";
 
 export type InvoiceItem = {
-  productId: string;
+  productId: string | null;
+  type?: InvoiceLineType;
   name: string;
   quantity: number;
   unitPrice: number;
@@ -42,6 +47,7 @@ export type InvoiceItem = {
 export type Invoice = {
   id: string;
   invoiceNumber: string;
+  customerId?: string | null;
   customerName: string;
   customerEmail: string | null;
   items: InvoiceItem[];
@@ -55,22 +61,55 @@ export type Invoice = {
 };
 
 export type CreateInvoiceInput = {
+  customerId?: string | null;
   customerName: string;
   customerEmail: string | null;
   issueDate: string;
   dueDate: string | null;
   notes: string | null;
-  items: Array<{ productId: string; quantity: number }>;
+  items: Array<{
+    type: InvoiceLineType;
+    productId?: string | null;
+    name?: string;
+    unitPrice?: number;
+    quantity: number;
+  }>;
   status?: InvoiceStatus;
 };
 
+export type Contact = {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  notes: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type ContactInput = Omit<Contact, "id" | "createdAt" | "updatedAt">;
+
+function contactApi(path: string) {
+  return {
+    list: () => request<Contact[]>(path),
+    create: (value: ContactInput) => request<Contact>(path, { method: "POST", body: JSON.stringify(value) }),
+    update: (id: string, value: ContactInput) => request<Contact>(`${path}/${id}`, { method: "PUT", body: JSON.stringify(value) }),
+    remove: (id: string) => request<void>(`${path}/${id}`, { method: "DELETE" }),
+  };
+}
+
 const API_URL = import.meta.env.VITE_API_URL ?? "";
+export const AUTH_EXPIRED_EVENT = "reciptile:auth-expired";
 
 export async function request<T>(
   path: string,
   options?: RequestInit,
+  authenticated = true,
 ): Promise<T> {
-  const token = sessionStorage.getItem("reciptile_token");
+  const token = authenticated
+    ? sessionStorage.getItem("reciptile_token")
+    : null;
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
     headers: {
@@ -81,9 +120,17 @@ export async function request<T>(
   });
 
   if (!response.ok) {
+    if (response.status === 401 && token) {
+      sessionStorage.removeItem("reciptile_token");
+      sessionStorage.removeItem("reciptile_user");
+      window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+    }
     const body = await response.json().catch(() => null);
     throw new Error(
-      body?.message ?? `Request failed with status ${response.status}`,
+      body?.message ??
+        (response.status === 401
+          ? "Your session expired. Please sign in again."
+          : `Request failed with status ${response.status}`),
     );
   }
 
@@ -92,7 +139,7 @@ export async function request<T>(
 }
 
 export const productsApi = {
-  list: () => request<Product[]>("/api/products"),
+  list: () => request<Product[]>("/api/products", undefined, false),
   create: (product: CreateProductInput) =>
     request<Product>("/api/products", {
       method: "POST",
@@ -168,4 +215,24 @@ export const invoicesApi = {
     }),
   remove: (id: string) =>
     request<void>(`/api/invoices/${id}`, { method: "DELETE" }),
+};
+
+export const customersApi = contactApi("/api/customers");
+export const suppliersApi = contactApi("/api/suppliers");
+
+export type StockMovement = {
+  id: string;
+  productId: string;
+  productName: string;
+  change: number;
+  balance: number;
+  reason: string;
+  reference: string | null;
+  createdAt: string;
+};
+
+export const inventoryApi = {
+  movements: () => request<StockMovement[]>("/api/inventory/movements"),
+  adjust: (input: { productId: string; change: number; reason: string; reference?: string | null }) =>
+    request<StockMovement>("/api/inventory/adjustments", { method: "POST", body: JSON.stringify(input) }),
 };

@@ -5,6 +5,8 @@ import java.util.List;
 
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -14,6 +16,9 @@ public record ProductRequest(
         @NotBlank @Size(max = 500) String description,
         @NotNull @DecimalMin(value = "0.0", inclusive = true) BigDecimal price,
         ProductStatus status,
+        @Min(0) @Max(999999) Integer quantity,
+        String supplierId,
+        @Min(0) @Max(999999) Integer lowStockThreshold,
         @Size(max = 4, message = "a product can have at most 4 images")
         List<@Valid ProductImageRequest> images) {
 }

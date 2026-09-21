@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Combobox as ComboboxBaseUI } from "@base-ui/react";
 import { ImageIcon, Link2, Plus, Search } from "lucide-react";
-import type { Product } from "../../../api";
+import { getProductImages, type Product } from "../../../api";
 import { Button } from "@/components/ui/button";
 import {
   Combobox,
@@ -60,7 +60,7 @@ export function ProductPicker({ products, onAdd }: ProductPickerProps) {
 
   return (
     <>
-      <div className="invoice-product-picker">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-[0.6rem] max-[520px]:grid-cols-[minmax(0,1fr)_auto] [&_[data-slot=combobox-input]]:w-full">
         <Combobox
           items={items}
           value={selectedProductId || null}
@@ -103,6 +103,7 @@ export function ProductPicker({ products, onAdd }: ProductPickerProps) {
           type="button"
           variant="outline"
           disabled={!selectedProductId}
+          className="max-[520px]:col-span-full"
           onClick={addSelected}
         >
           <Plus data-icon="inline-start" />
@@ -128,29 +129,29 @@ export function ProductPicker({ products, onAdd }: ProductPickerProps) {
               placeholder="Search by name or description"
             />
           </div>
-          <div className="catalog-product-list grid max-h-112 min-w-0 gap-1 overflow-x-hidden overflow-y-auto pr-1">
+          <div className="grid max-h-112 min-w-0 gap-1 overflow-x-hidden overflow-y-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {filteredProducts.map((product) => (
               <button
                 type="button"
-                className="catalog-product-row grid w-full min-w-0 grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="grid w-full min-w-0 grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={() => addFromCatalog(product.id)}
                 key={product.id}
               >
                 <span className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-md bg-muted text-muted-foreground">
-                  {product.image?.url ? (
+                  {getProductImages(product)[0]?.url ? (
                     <img
                       className="size-full object-cover"
-                      src={product.image.url}
+                      src={getProductImages(product)[0].url}
                       alt=""
                     />
                   ) : (
                     <ImageIcon className="size-4" />
                   )}
                 </span>
-                <span className="catalog-product-copy min-w-0">
+                <span className="min-w-0 overflow-hidden">
                   <strong className="block wrap-break-words text-sm">{product.name}</strong>
                   <span className="block truncate text-xs text-muted-foreground">
-                    {product.description}
+                    {product.description} · {product.quantity ?? 0} in stock
                   </span>
                 </span>
                 <strong className="min-w-18 shrink-0 text-right text-sm">

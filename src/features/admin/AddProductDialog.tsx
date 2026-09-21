@@ -1,8 +1,10 @@
-import { useRef, useState, type ChangeEvent, type SubmitEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type SubmitEvent } from "react";
 import { ImagePlus, Plus, Trash2 } from "lucide-react";
 import {
   getProductImages,
   uploadsApi,
+  suppliersApi,
+  type Contact,
   type CreateProductInput,
   type Product,
   type ProductImage,
@@ -18,11 +20,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const emptyProduct: CreateProductInput = {
   name: "",
   description: "",
   price: 0,
+  quantity: 0,
+  supplierId: null,
+  lowStockThreshold: 5,
   status: "ACTIVE",
   images: [],
 };
@@ -56,6 +62,9 @@ function initialProduct(product: Product | null): CreateProductInput {
     name: product.name,
     description: product.description,
     price: product.price,
+    quantity: product.quantity ?? 0,
+    supplierId: product.supplierId ?? null,
+    lowStockThreshold: product.lowStockThreshold ?? 5,
     status: product.status,
     images: getProductImages(product),
   };
@@ -86,7 +95,12 @@ export function AddProductDialog({
   const [error, setError] = useState("");
   const [stage, setStage] = useState<"idle" | "uploading" | "saving">("idle");
   const [saving, setSaving] = useState(false);
+  const [suppliers, setSuppliers] = useState<Contact[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (open) suppliersApi.list().then(setSuppliers).catch(() => setSuppliers([]));
+  }, [open]);
 
   async function selectImages(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
@@ -270,19 +284,63 @@ export function AddProductDialog({
               onChange={(event) => setProduct({ ...product, name: event.target.value })}
             />
           </label>
-          <label className="flex flex-col gap-2 text-sm">
-            Price
-            <Input
-              required
-              min="0"
-              step="0.01"
-              type="number"
-              value={product.price}
-              onChange={(event) =>
-                setProduct({ ...product, price: Number(event.target.value) })
-              }
-            />
-          </label>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="flex flex-col gap-2 text-sm">
+              Price
+              <Input
+                required
+                min="0"
+                step="0.01"
+                type="number"
+                value={product.price}
+                onChange={(event) =>
+                  setProduct({ ...product, price: Number(event.target.value) })
+                }
+              />
+            </label>
+            {editingProduct ? (
+              <div className="flex flex-col gap-2 text-sm">
+                <span>Stock on hand</span>
+                <div className="flex h-9 items-center rounded-md border bg-muted px-3 font-medium tabular-nums">
+                  {product.quantity}
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  Use Restock from the product actions to add inventory.
+                </span>
+              </div>
+            ) : (
+              <label className="flex flex-col gap-2 text-sm">
+                Opening stock
+                <Input
+                  required
+                  min="0"
+                  max="999999"
+                  step="1"
+                  type="number"
+                  value={product.quantity}
+                  onChange={(event) =>
+                    setProduct({
+                      ...product,
+                      quantity: Math.max(0, Number(event.target.value) || 0),
+                    })
+                  }
+                />
+              </label>
+            )}
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="flex flex-col gap-2 text-sm">
+              Supplier
+              <Select value={product.supplierId || "none"} onValueChange={(value) => setProduct({ ...product, supplierId: value === "none" ? null : value })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="none">No supplier</SelectItem>{suppliers.map((supplier) => <SelectItem key={supplier.id} value={supplier.id}>{supplier.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </label>
+            <label className="flex flex-col gap-2 text-sm">
+              Low stock alert at
+              <Input min="0" max="999999" step="1" type="number" value={product.lowStockThreshold ?? 5} onChange={(event) => setProduct({ ...product, lowStockThreshold: Math.max(0, Number(event.target.value) || 0) })}/>
+            </label>
+          </div>
           <label className="flex flex-col gap-2 text-sm">
             Description
             <Input

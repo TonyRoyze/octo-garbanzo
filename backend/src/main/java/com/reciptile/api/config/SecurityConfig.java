@@ -37,6 +37,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/uploads/**").hasRole("ADMIN")
                         .requestMatchers("/api/products/**").hasRole("ADMIN")
                         .requestMatchers("/api/invoices/**").hasRole("ADMIN")
+                        .requestMatchers("/api/customers/**", "/api/suppliers/**", "/api/inventory/**").hasRole("ADMIN")
                         .requestMatchers("/api/checkout/**").hasRole("CUSTOMER")
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth -> oauth.jwt(jwt -> jwt.jwtAuthenticationConverter(converter)))

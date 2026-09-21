@@ -18,6 +18,9 @@ public class Product {
     private String description;
     private BigDecimal price;
     private ProductStatus status;
+    private int quantity;
+    private String supplierId;
+    private int lowStockThreshold = 5;
     // Kept so products created before multi-image support continue to load.
     private ProductImage image;
     private List<ProductImage> images = List.of();
@@ -53,6 +56,12 @@ public class Product {
     public void setPrice(BigDecimal price) { this.price = price; }
     public ProductStatus getStatus() { return status; }
     public void setStatus(ProductStatus status) { this.status = status; }
+    public int getQuantity() { return quantity; }
+    public void setQuantity(int quantity) { this.quantity = quantity; }
+    public String getSupplierId() { return supplierId; }
+    public void setSupplierId(String supplierId) { this.supplierId = supplierId; }
+    public int getLowStockThreshold() { return lowStockThreshold; }
+    public void setLowStockThreshold(int lowStockThreshold) { this.lowStockThreshold = lowStockThreshold; }
     public ProductImage getImage() { return image; }
     public void setImage(ProductImage image) { this.image = image; }
     public List<ProductImage> getImages() {
