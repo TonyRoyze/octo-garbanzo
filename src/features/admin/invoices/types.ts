@@ -1,7 +1,7 @@
 export type InvoiceDocumentItem = {
   id: string;
-  type: "PRODUCT" | "SERVICE";
-  productId: string | null;
+  type: "PRODUCT";
+  productId: string;
   name: string;
   quantity: number;
   unitPrice: number;

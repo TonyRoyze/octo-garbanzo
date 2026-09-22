@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState, type SubmitEvent } from "react";
-import { BriefcaseBusiness, Download, Save, Trash2 } from "lucide-react";
+import { Download, Save, Trash2 } from "lucide-react";
 import type {
   CreateInvoiceInput,
   Invoice,
-  InvoiceLineType,
   InvoiceStatus,
   Product,
   Contact,
@@ -18,7 +17,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { currency } from "../../../lib/currency";
 import { downloadInvoicePdf } from "./invoicePdf";
 import { InvoicePreview } from "./InvoicePreview";
@@ -26,20 +24,12 @@ import { InvoiceStatusSelect } from "./InvoiceStatusSelect";
 import { ProductPicker } from "./ProductPicker";
 import type { InvoiceDocumentData } from "./types";
 
-type SelectedItem =
-  | {
-      id: string;
-      type: "PRODUCT";
-      productId: string;
-      quantity: number;
-    }
-  | {
-      id: string;
-      type: "SERVICE";
-      name: string;
-      unitPrice: number;
-      quantity: number;
-    };
+type SelectedItem = {
+  id: string;
+  type: "PRODUCT";
+  productId: string;
+  quantity: number;
+};
 
 type InvoiceBuilderProps = {
   products: Product[];
@@ -78,9 +68,6 @@ export function InvoiceBuilder({
   const [notes, setNotes] = useState("");
   const [includeNotes, setIncludeNotes] = useState(true);
   const [items, setItems] = useState<SelectedItem[]>([]);
-  const [serviceName, setServiceName] = useState("");
-  const [serviceRate, setServiceRate] = useState(0);
-  const [serviceQuantity, setServiceQuantity] = useState(1);
   const [saving, setSaving] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [status, setStatus] = useState<InvoiceStatus>(invoice?.status ?? "DRAFT");
@@ -96,40 +83,21 @@ export function InvoiceBuilder({
     setIncludeDueDate(Boolean(invoice.dueDate));
     setNotes(invoice.notes ?? "");
     setIncludeNotes(Boolean(invoice.notes));
-    setItems(invoice.items.map((item, index) => {
-      const type: InvoiceLineType = item.type ?? (item.productId ? "PRODUCT" : "SERVICE");
-      return type === "PRODUCT" && item.productId
-        ? {
+    setItems(invoice.items.flatMap((item) =>
+      item.productId && (item.type ?? "PRODUCT") === "PRODUCT"
+        ? [{
             id: `product-${item.productId}`,
             type: "PRODUCT" as const,
             productId: item.productId,
             quantity: item.quantity,
-          }
-        : {
-            id: `service-${invoice.id}-${index}`,
-            type: "SERVICE" as const,
-            name: item.name,
-            unitPrice: item.unitPrice,
-            quantity: item.quantity,
-          };
-    }));
+          }]
+        : [],
+    ));
     setStatus(invoice.status);
   }, [defaultDueDate, invoice]);
 
   const document = useMemo<InvoiceDocumentData>(() => {
     const documentItems = items.reduce<InvoiceDocumentData["items"]>((result, item) => {
-      if (item.type === "SERVICE") {
-        result.push({
-          id: item.id,
-          type: item.type,
-          productId: null,
-          name: item.name,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          lineTotal: item.unitPrice * item.quantity,
-        });
-        return result;
-      }
       const product = products.find((candidate) => candidate.id === item.productId);
       if (!product) return result;
       result.push({
@@ -169,9 +137,7 @@ export function InvoiceBuilder({
   ]);
 
   const availableProducts = products.filter(
-    (product) => !items.some(
-      (item) => item.type === "PRODUCT" && item.productId === product.id,
-    ),
+    (product) => !items.some((item) => item.productId === product.id),
   );
 
   function addProduct(productId: string) {
@@ -179,31 +145,6 @@ export function InvoiceBuilder({
       ...current,
       { id: `product-${productId}`, type: "PRODUCT", productId, quantity: 1 },
     ]);
-  }
-
-  function addService() {
-    const name = serviceName.trim();
-    if (!name) {
-      onNotify("Enter a service name");
-      return;
-    }
-    if (serviceRate < 0) {
-      onNotify("Service rate cannot be negative");
-      return;
-    }
-    setItems((current) => [
-      ...current,
-      {
-        id: crypto.randomUUID(),
-        type: "SERVICE",
-        name,
-        unitPrice: serviceRate,
-        quantity: Math.max(1, Math.min(999, serviceQuantity || 1)),
-      },
-    ]);
-    setServiceName("");
-    setServiceRate(0);
-    setServiceQuantity(1);
   }
 
   function changeQuantity(id: string, quantity: number) {
@@ -231,7 +172,7 @@ export function InvoiceBuilder({
   async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!items.length) {
-      onNotify("Add at least one product or service to the invoice");
+      onNotify("Add at least one product to the invoice");
       return;
     }
     setSaving(true);
@@ -243,20 +184,11 @@ export function InvoiceBuilder({
         issueDate,
         dueDate: includeDueDate ? dueDate : null,
         notes: includeNotes ? notes : null,
-        items: items.map((item) =>
-          item.type === "PRODUCT"
-            ? {
-                type: item.type,
-                productId: item.productId,
-                quantity: item.quantity,
-              }
-            : {
-                type: item.type,
-                name: item.name,
-                unitPrice: item.unitPrice,
-                quantity: item.quantity,
-              },
-        ),
+        items: items.map((item) => ({
+          type: "PRODUCT",
+          productId: item.productId,
+          quantity: item.quantity,
+        })),
         status,
       });
     } catch {
@@ -374,71 +306,19 @@ export function InvoiceBuilder({
 
         <fieldset className="m-0 grid gap-4 border-0 border-t border-[#dfe3dd] px-0 py-6">
           <legend className="float-left mb-4 w-full font-heading text-[0.95rem] font-bold text-[#18352b]">Invoice items</legend>
-          <Tabs defaultValue="products">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="products">Products</TabsTrigger>
-              <TabsTrigger value="services">Services</TabsTrigger>
-            </TabsList>
-            <TabsContent value="products" className="pt-2">
-              <ProductPicker products={availableProducts} onAdd={addProduct} />
-            </TabsContent>
-            <TabsContent value="services" className="pt-2">
-              <div className="grid grid-cols-[minmax(0,1fr)_minmax(6rem,0.55fr)_minmax(5rem,0.4fr)] items-end gap-[0.6rem] max-[520px]:grid-cols-2 [&>button]:col-span-full [&>button]:justify-self-start">
-                <label className="flex min-w-0 flex-col gap-[0.4rem] text-[0.78rem] font-[650] text-[#56635b] max-[520px]:col-span-full">
-                  Service
-                  <Input
-                    maxLength={160}
-                    value={serviceName}
-                    onChange={(event) => setServiceName(event.target.value)}
-                    placeholder="Design consultation"
-                  />
-                </label>
-                <label className="flex min-w-0 flex-col gap-[0.4rem] text-[0.78rem] font-[650] text-[#56635b]">
-                  Rate
-                  <Input
-                    min="0"
-                    step="0.01"
-                    type="number"
-                    value={serviceRate}
-                    onChange={(event) => setServiceRate(Number(event.target.value))}
-                  />
-                </label>
-                <label className="flex min-w-0 flex-col gap-[0.4rem] text-[0.78rem] font-[650] text-[#56635b]">
-                  Quantity
-                  <Input
-                    min="1"
-                    max="999"
-                    step="1"
-                    type="number"
-                    value={serviceQuantity}
-                    onChange={(event) =>
-                      setServiceQuantity(Number(event.target.value))
-                    }
-                  />
-                </label>
-                <Button type="button" variant="outline" onClick={addService}>
-                  <BriefcaseBusiness data-icon="inline-start" />
-                  Add service
-                </Button>
-              </div>
-            </TabsContent>
-          </Tabs>
+          <ProductPicker products={availableProducts} onAdd={addProduct} />
 
           <div className="grid gap-1">
             {items.length === 0 && (
               <p className="m-0 border border-dashed border-[#cbd3ca] p-6 text-center text-[0.82rem] text-[#718078]">
-                Add products or services to start building the invoice.
+                Add products to start building the invoice.
               </p>
             )}
             {items.map((item) => {
-              const product = item.type === "PRODUCT"
-                ? products.find((candidate) => candidate.id === item.productId)
-                : null;
-              if (item.type === "PRODUCT" && !product) return null;
-              const name = item.type === "PRODUCT" ? product!.name : item.name;
-              const unitPrice = item.type === "PRODUCT"
-                ? product!.price
-                : item.unitPrice;
+              const product = products.find((candidate) => candidate.id === item.productId);
+              if (!product) return null;
+              const name = product.name;
+              const unitPrice = product.price;
               return (
                 <div
                   className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-[0.65rem] border-b border-[#e4e7e2] py-3 max-[520px]:grid-cols-[minmax(0,1fr)_auto]"
@@ -447,8 +327,7 @@ export function InvoiceBuilder({
                   <div className="min-w-0">
                     <strong className="block truncate text-[0.86rem]">{name}</strong>
                     <span className="block truncate text-[0.72rem] text-[#718078]">
-                      {item.type === "SERVICE" ? "Service" : "Product"}
-                      {" · "}{currency.format(unitPrice)} each
+                      Product · {currency.format(unitPrice)} each
                     </span>
                   </div>
                   <div className="flex items-center max-[520px]:justify-self-start">

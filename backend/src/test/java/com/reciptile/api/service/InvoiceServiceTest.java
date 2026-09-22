@@ -1,10 +1,9 @@
 package com.reciptile.api.service;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -35,11 +34,11 @@ class InvoiceServiceTest {
     @InjectMocks InvoiceService service;
 
     @Test
-    void createsAnInvoiceWithAServiceLine() {
+    void rejectsServiceLines() {
         InvoiceRequest.ItemRequest serviceLine = new InvoiceRequest.ItemRequest(
                 InvoiceLineType.SERVICE,
                 null,
-                "  Installation  ",
+                "Installation",
                 new BigDecimal("25.00"),
                 2);
         InvoiceRequest request = new InvoiceRequest(
@@ -51,15 +50,10 @@ class InvoiceServiceTest {
                 null,
                 List.of(serviceLine),
                 InvoiceStatus.DRAFT);
-        when(invoices.save(any(Invoice.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Invoice created = service.create(request);
-
-        assertThat(created.getItems()).hasSize(1);
-        assertThat(created.getItems().getFirst().type()).isEqualTo(InvoiceLineType.SERVICE);
-        assertThat(created.getItems().getFirst().name()).isEqualTo("Installation");
-        assertThat(created.getAmount()).isEqualByComparingTo("50.00");
-        verify(products, never()).findById(any());
+        assertThatThrownBy(() -> service.create(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Sales invoices only support product lines");
     }
 
     @Test

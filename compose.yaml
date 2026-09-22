@@ -2,8 +2,6 @@ services:
   mongodb:
     image: mongo:8.0
     restart: unless-stopped
-    ports:
-      - "27017:27017"
     volumes:
       - reciptile-mongodb:/data/db
     healthcheck:
@@ -11,6 +9,36 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks: [reciptile]
+
+  backend:
+    image: ghcr.io/tonyroyze/octo-garbanzo/reciptile-api:latest
+    restart: unless-stopped
+    environment:
+      MONGODB_URI: mongodb://mongodb:27017/reciptile
+      MONGODB_DATABASE: reciptile
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in the .env file}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      ADMIN_LOCATION: ${ADMIN_LOCATION:-}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost}
+      UPLOADTHING_TOKEN: ${UPLOADTHING_TOKEN:-}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks: [reciptile]
+
+  frontend:
+    image: ghcr.io/tonyroyze/octo-garbanzo/reciptile-frontend:latest
+    restart: unless-stopped
+    ports:
+      - "${PORT:-80}:80"
+    depends_on:
+      - backend
+    networks: [reciptile]
+
+networks:
+  reciptile:
 
 volumes:
   reciptile-mongodb:

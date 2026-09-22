@@ -81,7 +81,7 @@ export function InvoicePreview({ invoice }: { invoice: InvoiceDocumentData }) {
             ))
           ) : (
             <div className="border-b border-[#e1e5df] px-2 py-10 text-center text-[0.72rem] text-[#849087]">
-              Selected products and services appear here.
+              Selected products appear here.
             </div>
           )}
         </div>

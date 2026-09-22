@@ -1,7 +1,14 @@
-import { useCallback, useMemo, useState, type SubmitEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type SubmitEvent } from "react";
 import { createColumnHelper } from "@tanstack/react-table";
 import { MoreHorizontal, PackagePlus, Plus } from "lucide-react";
-import { getProductImages, inventoryApi, type Product } from "../../../api";
+import {
+  getProductImages,
+  purchaseInvoicesApi,
+  suppliersApi,
+  type Contact,
+  type Product,
+  type PurchasePaymentStatus,
+} from "../../../api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -23,6 +30,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { currency } from "../../../lib/currency";
 import { DataTable, DataTableColumnHeader } from "../data-table/DataTable";
 import type { DataTableFeatures } from "../data-table/data-table-features";
@@ -50,26 +65,42 @@ export function ProductsPage({
   onNotify,
 }: ProductsPageProps) {
   const [restocking, setRestocking] = useState<Product | null>(null);
+  const [suppliers, setSuppliers] = useState<Contact[]>([]);
+  const [supplierId, setSupplierId] = useState("");
   const [quantity, setQuantity] = useState(1);
+  const [unitCost, setUnitCost] = useState(0);
   const [reference, setReference] = useState("");
+  const [paymentStatus, setPaymentStatus] = useState<PurchasePaymentStatus>("CREDIT");
+  const [issueDate, setIssueDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    suppliersApi.list().then(setSuppliers).catch((error: Error) => onNotify(error.message));
+  }, [onNotify]);
 
   const openRestock = useCallback((product: Product) => {
     setRestocking(product);
+    setSupplierId(product.supplierId ?? "");
     setQuantity(1);
+    setUnitCost(product.price);
     setReference("");
+    setPaymentStatus("CREDIT");
+    setIssueDate(new Date().toISOString().slice(0, 10));
   }, []);
 
   async function restock(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!restocking || quantity < 1) return;
+    if (!restocking || !supplierId || quantity < 1 || unitCost < 0) return;
     setSaving(true);
     try {
-      await inventoryApi.adjust({
-        productId: restocking.id,
-        change: quantity,
-        reason: "Stock received",
-        reference: reference.trim() || null,
+      await purchaseInvoicesApi.create({
+        supplierId,
+        supplierReference: reference.trim() || null,
+        issueDate,
+        dueDate: null,
+        notes: null,
+        paymentStatus,
+        items: [{ productId: restocking.id, quantity, unitCost }],
       });
       await onProductsChanged();
       setRestocking(null);
@@ -127,9 +158,27 @@ export function ProductsPage({
           <DialogHeader>
             <DialogTitle>Restock {restocking?.name}</DialogTitle>
             <DialogDescription>
-              Add received units to the current stock of {restocking?.quantity ?? 0}.
+              Create a supplier purchase invoice and add received units to the current stock of {restocking?.quantity ?? 0}.
             </DialogDescription>
           </DialogHeader>
+          <label className="flex flex-col gap-2 text-sm">
+            Supplier
+            <Select value={supplierId || null} onValueChange={(value) => setSupplierId(value ?? "")}>
+              <SelectTrigger className="w-full"><SelectValue placeholder="Select supplier" /></SelectTrigger>
+              <SelectContent><SelectGroup>{suppliers.map((supplier) => <SelectItem key={supplier.id} value={supplier.id}>{supplier.name}</SelectItem>)}</SelectGroup></SelectContent>
+            </Select>
+          </label>
+          <label className="flex flex-col gap-2 text-sm">
+            Issue date
+            <Input required type="date" value={issueDate} onChange={(event) => setIssueDate(event.target.value)} />
+          </label>
+          <label className="flex flex-col gap-2 text-sm">
+            Payment status
+            <Select value={paymentStatus} onValueChange={(value) => value && setPaymentStatus(value as PurchasePaymentStatus)}>
+              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectGroup><SelectItem value="CREDIT">Credit</SelectItem><SelectItem value="PAID">Paid</SelectItem><SelectItem value="ADVANCE">Advance</SelectItem></SelectGroup></SelectContent>
+            </Select>
+          </label>
           <label className="flex flex-col gap-2 text-sm">
             Quantity received
             <Input
@@ -144,7 +193,18 @@ export function ProductsPage({
             />
           </label>
           <label className="flex flex-col gap-2 text-sm">
-            Reference <span className="text-muted-foreground">optional</span>
+            Unit purchase cost
+            <Input
+              required
+              min="0"
+              step="0.01"
+              type="number"
+              value={unitCost}
+              onChange={(event) => setUnitCost(Math.max(0, Number(event.target.value) || 0))}
+            />
+          </label>
+          <label className="flex flex-col gap-2 text-sm">
+            Supplier reference <span className="text-muted-foreground">optional</span>
             <Input
               maxLength={120}
               value={reference}
@@ -156,7 +216,7 @@ export function ProductsPage({
             <Button type="button" variant="ghost" onClick={() => setRestocking(null)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={saving || quantity < 1}>
+            <Button type="submit" disabled={saving || !supplierId || quantity < 1 || unitCost < 0}>
               <PackagePlus data-icon="inline-start" />
               {saving ? "Restocking…" : "Add stock"}
             </Button>

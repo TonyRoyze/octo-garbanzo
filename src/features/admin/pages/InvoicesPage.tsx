@@ -3,18 +3,24 @@ import { createColumnHelper } from "@tanstack/react-table";
 import { MoreHorizontal, Plus } from "lucide-react";
 import {
   invoicesApi,
+  purchaseInvoicesApi,
   customersApi,
   type Contact,
   type CreateInvoiceInput,
+  type CreatePurchaseInvoiceInput,
   type Invoice,
   type InvoiceStatus,
   type Product,
+  type PurchaseInvoice,
 } from "../../../api";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { currency } from "../../../lib/currency";
 import { InvoiceBuilder } from "../invoices/InvoiceBuilder";
+import { PurchaseInvoiceBuilder } from "../invoices/PurchaseInvoiceBuilder";
 import { InvoiceStatusSelect } from "../invoices/InvoiceStatusSelect";
 import { downloadInvoicePdf } from "../invoices/invoicePdf";
 import { PageHeader } from "../PageHeader";
@@ -27,13 +33,18 @@ type InvoicesPageProps = {
   onNotify: (message: string) => void;
 };
 const columnHelper = createColumnHelper<DataTableFeatures, Invoice>();
+const purchaseColumnHelper = createColumnHelper<DataTableFeatures, PurchaseInvoice>();
 
 export function InvoicesPage({ products, onProductsChanged, onNotify }: InvoicesPageProps) {
+  const [activeTab, setActiveTab] = useState("sales");
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [creating, setCreating] = useState(false);
+  const [creatingPurchase, setCreatingPurchase] = useState(false);
   const building = editingInvoice !== null || creating;
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [purchaseInvoices, setPurchaseInvoices] = useState<PurchaseInvoice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [purchasesLoading, setPurchasesLoading] = useState(true);
   const [customers, setCustomers] = useState<Contact[]>([]);
 
   useEffect(() => {
@@ -46,6 +57,14 @@ export function InvoicesPage({ products, onProductsChanged, onNotify }: Invoices
 
   useEffect(() => {
     customersApi.list().then(setCustomers).catch((error: Error) => onNotify(error.message));
+  }, [onNotify]);
+
+  useEffect(() => {
+    purchaseInvoicesApi
+      .list()
+      .then(setPurchaseInvoices)
+      .catch((error: Error) => onNotify(error.message))
+      .finally(() => setPurchasesLoading(false));
   }, [onNotify]);
 
   async function saveInvoice(input: CreateInvoiceInput) {
@@ -67,6 +86,20 @@ export function InvoicesPage({ products, onProductsChanged, onNotify }: Invoices
     }
   }
 
+  async function savePurchaseInvoice(input: CreatePurchaseInvoiceInput) {
+    try {
+      const saved = await purchaseInvoicesApi.create(input);
+      setPurchaseInvoices((current) => [saved, ...current]);
+      setCreatingPurchase(false);
+      await onProductsChanged();
+      onNotify("Purchase invoice saved");
+      return saved;
+    } catch (error) {
+      onNotify(error instanceof Error ? error.message : "Could not save purchase invoice");
+      throw error;
+    }
+  }
+
   const changeStatus = useCallback(async (invoice: Invoice, status: InvoiceStatus) => {
     try {
       const updated = await invoicesApi.update(invoice.id, {
@@ -76,13 +109,14 @@ export function InvoicesPage({ products, onProductsChanged, onNotify }: Invoices
         issueDate: invoice.issueDate,
         dueDate: invoice.dueDate,
         notes: invoice.notes,
-        items: invoice.items.map((item) => ({
-          type: item.type ?? (item.productId ? "PRODUCT" : "SERVICE"),
-          productId: item.productId,
-          name: item.name,
-          unitPrice: item.unitPrice,
-          quantity: item.quantity,
-        })),
+        items: invoice.items.flatMap((item) => item.productId && (item.type ?? "PRODUCT") === "PRODUCT"
+          ? [{
+              type: "PRODUCT" as const,
+              productId: item.productId,
+              quantity: item.quantity,
+            }]
+          : [],
+        ),
         status,
       });
       setInvoices((current) => current.map((candidate) =>
@@ -99,11 +133,15 @@ export function InvoicesPage({ products, onProductsChanged, onNotify }: Invoices
     try {
       await downloadInvoicePdf({
         ...invoice,
-        items: (invoice.items ?? []).map((item, index) => ({
-          ...item,
-          id: item.productId ?? `service-${invoice.id}-${index}`,
-          type: item.type ?? (item.productId ? "PRODUCT" : "SERVICE"),
-        })),
+        items: (invoice.items ?? []).flatMap((item) => item.productId && (item.type ?? "PRODUCT") === "PRODUCT"
+          ? [{
+              ...item,
+              id: item.productId,
+              productId: item.productId,
+              type: "PRODUCT" as const,
+            }]
+          : [],
+        ),
         notes: invoice.notes ?? "",
       });
       onNotify("Invoice PDF downloaded");
@@ -158,6 +196,42 @@ export function InvoicesPage({ products, onProductsChanged, onNotify }: Invoices
     }),
   ]), [changeStatus, download, remove]);
 
+  const purchaseColumns = useMemo(() => purchaseColumnHelper.columns([
+    purchaseColumnHelper.accessor("purchaseInvoiceNumber", {
+      id: "purchaseInvoice",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Invoice" />,
+      cell: ({ row }) => <div><strong className="block">{row.original.purchaseInvoiceNumber}</strong><span className="text-xs text-muted-foreground">Issued {row.original.issueDate}</span></div>,
+    }),
+    purchaseColumnHelper.accessor("supplierName", {
+      id: "supplier",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Supplier" />,
+      cell: ({ row }) => <strong>{row.original.supplierName}</strong>,
+    }),
+    purchaseColumnHelper.accessor("issueDate", {
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Issue date" />,
+    }),
+    purchaseColumnHelper.accessor("amount", {
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Total" />,
+      cell: ({ row }) => <strong className="tabular-nums">{currency.format(row.original.amount)}</strong>,
+    }),
+    purchaseColumnHelper.accessor("paymentStatus", {
+      id: "paymentStatus",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Payment status" />,
+      cell: ({ row }) => <Badge variant="secondary">{row.original.paymentStatus.charAt(0) + row.original.paymentStatus.slice(1).toLowerCase()}</Badge>,
+    }),
+  ]), []);
+
+  if (creatingPurchase) {
+    return (
+      <PurchaseInvoiceBuilder
+        products={products}
+        onCancel={() => setCreatingPurchase(false)}
+        onSave={savePurchaseInvoice}
+        onNotify={onNotify}
+      />
+    );
+  }
+
   if (building) {
     return (
       <InvoiceBuilder
@@ -177,27 +251,47 @@ export function InvoicesPage({ products, onProductsChanged, onNotify }: Invoices
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6 p-4 sm:p-8">
       <PageHeader
-        eyebrow="Money in, made simple"
+        eyebrow="Sales and purchasing"
         title="Invoices"
-        description="Build, preview and download customer invoices."
+        description="Manage customer sales and supplier purchases."
         action={
-          <Button onClick={() => setCreating(true)}>
+          <Button onClick={() => activeTab === "sales" ? setCreating(true) : setCreatingPurchase(true)}>
             <Plus data-icon="inline-start" />
-            Create invoice
+            {activeTab === "sales" ? "Create sales invoice" : "Create purchase invoice"}
           </Button>
         }
       />
 
-      <section aria-label="Saved invoices">
-        <DataTable
-          columns={columns}
-          data={invoices}
-          getRowId={(invoice) => invoice.id}
-          filterColumn="customer"
-          filterPlaceholder="Filter customers…"
-          emptyMessage={loading ? "Loading invoices…" : "No invoices yet."}
-        />
-      </section>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="sales">Sales</TabsTrigger>
+          <TabsTrigger value="purchases">Purchases</TabsTrigger>
+        </TabsList>
+        <TabsContent value="sales" className="pt-4">
+          <section aria-label="Sales invoices">
+            <DataTable
+              columns={columns}
+              data={invoices}
+              getRowId={(invoice) => invoice.id}
+              filterColumn="customer"
+              filterPlaceholder="Filter customers…"
+              emptyMessage={loading ? "Loading sales invoices…" : "No sales invoices yet."}
+            />
+          </section>
+        </TabsContent>
+        <TabsContent value="purchases" className="pt-4">
+          <section aria-label="Purchase invoices">
+            <DataTable
+              columns={purchaseColumns}
+              data={purchaseInvoices}
+              getRowId={(invoice) => invoice.id}
+              filterColumn="supplier"
+              filterPlaceholder="Filter suppliers…"
+              emptyMessage={purchasesLoading ? "Loading purchase invoices…" : "No purchase invoices yet."}
+            />
+          </section>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -96,24 +96,9 @@ public class InvoiceService {
 
     private List<InvoiceItem> buildItems(InvoiceRequest request) {
         return request.items().stream().map(item -> {
-            InvoiceLineType type = item.type() == null
-                    ? (item.productId() == null || item.productId().isBlank()
-                            ? InvoiceLineType.SERVICE
-                            : InvoiceLineType.PRODUCT)
-                    : item.type();
-
-            if (type == InvoiceLineType.SERVICE) {
-                if (item.name() == null || item.name().isBlank()) {
-                    throw new IllegalArgumentException("Service name is required");
-                }
-                if (item.unitPrice() == null || item.unitPrice().signum() < 0) {
-                    throw new IllegalArgumentException("Service rate must be zero or greater");
-                }
-                BigDecimal lineTotal = item.unitPrice().multiply(BigDecimal.valueOf(item.quantity()));
-                return new InvoiceItem(null, InvoiceLineType.SERVICE, item.name().trim(),
-                        item.quantity(), item.unitPrice(), lineTotal);
+            if (item.type() == InvoiceLineType.SERVICE) {
+                throw new IllegalArgumentException("Sales invoices only support product lines");
             }
-
             if (item.productId() == null || item.productId().isBlank()) {
                 throw new IllegalArgumentException("Product is required for a product line");
             }

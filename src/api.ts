@@ -77,6 +77,46 @@ export type CreateInvoiceInput = {
   status?: InvoiceStatus;
 };
 
+export type PurchasePaymentStatus = "CREDIT" | "PAID" | "ADVANCE";
+
+export type PurchaseInvoiceItem = {
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitCost: number;
+  lineTotal: number;
+};
+
+export type PurchaseInvoice = {
+  id: string;
+  purchaseInvoiceNumber: string;
+  supplierId: string;
+  supplierName: string;
+  supplierReference: string | null;
+  items: PurchaseInvoiceItem[];
+  amount: number;
+  currency: string;
+  paymentStatus: PurchasePaymentStatus;
+  issueDate: string;
+  dueDate: string | null;
+  notes: string | null;
+  createdAt: string;
+};
+
+export type CreatePurchaseInvoiceInput = {
+  supplierId: string;
+  supplierReference: string | null;
+  issueDate: string;
+  dueDate: string | null;
+  notes: string | null;
+  paymentStatus: PurchasePaymentStatus;
+  items: Array<{
+    productId: string;
+    quantity: number;
+    unitCost: number;
+  }>;
+};
+
 export type Contact = {
   id: string;
   name: string;
@@ -215,6 +255,15 @@ export const invoicesApi = {
     }),
   remove: (id: string) =>
     request<void>(`/api/invoices/${id}`, { method: "DELETE" }),
+};
+
+export const purchaseInvoicesApi = {
+  list: () => request<PurchaseInvoice[]>("/api/purchase-invoices"),
+  create: (invoice: CreatePurchaseInvoiceInput) =>
+    request<PurchaseInvoice>("/api/purchase-invoices", {
+      method: "POST",
+      body: JSON.stringify(invoice),
+    }),
 };
 
 export const customersApi = contactApi("/api/customers");
